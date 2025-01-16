@@ -1,5 +1,6 @@
-import json
+import winreg
 import os
+import json
 import secrets
 import string
 import subprocess
@@ -7,12 +8,30 @@ import sys
 import psutil
 import time
 
+
+def get_steam_installation_path():
+    """Retrieve the Steam installation path from the Windows registry."""
+    try:
+        reg_key = winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE, 
+            r"SOFTWARE\WOW6432Node\Valve\Steam"
+        )
+        steam_path, _ = winreg.QueryValueEx(reg_key, "InstallPath")
+        winreg.CloseKey(reg_key)
+        print(f"Steam installation path found: {steam_path}")
+        return steam_path
+    except FileNotFoundError:
+        print("Steam installation path not found in the registry.")
+        sys.exit(1)
+
+
 def generate_random_id(length=32):
     """Generate a random string of letters and digits of a given length."""
     characters = string.ascii_letters + string.digits
     random_id = ''.join(secrets.choice(characters) for _ in range(length))
     print(f"Generated random ID: {random_id}")
     return random_id
+
 
 def create_settings_file(file_path):
     # Generate random IDs
@@ -42,9 +61,10 @@ def create_settings_file(file_path):
     
     print(f"Settings file created at: {file_path}")
 
+
 def launch_steam_game(app_id):
-    # Check if Steam is installed and the path is correct
-    steam_path = r"C:\Program Files (x86)\Steam\steam.exe"  # Use a raw string
+    # Get the Steam installation path
+    steam_path = os.path.join(get_steam_installation_path(), "steam.exe")
     print(f"Checking if Steam exists at: {steam_path}")
 
     if not os.path.exists(steam_path):
@@ -60,6 +80,7 @@ def launch_steam_game(app_id):
         print(f"Failed to launch the game: {e}")
         sys.exit(1)
 
+
 def find_process_by_name(name):
     """Returns a list of processes matching the name."""
     matching_processes = []
@@ -70,9 +91,11 @@ def find_process_by_name(name):
     print(f"Found {len(matching_processes)} matching process(es).")
     return matching_processes
 
+
 def main():
     # Define file path and App ID
-    file_path = r"C:\Program Files (x86)\Steam\steamapps\common\The First Descendant\EasyAntiCheat\Settings.json"
+    steam_install_path = get_steam_installation_path()
+    file_path = os.path.join(steam_install_path, r"steamapps\common\The First Descendant\EasyAntiCheat\Settings.json")
     app_id = "2074920"  # Example: TFD
     target_process_name = "BlackCipher64.aes"
 
@@ -116,6 +139,7 @@ def main():
     time.sleep(10)
 
     print("Exiting...")
+
 
 if __name__ == "__main__":
     main()
