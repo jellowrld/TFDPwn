@@ -9,9 +9,11 @@ import psutil
 import time
 
 
-def get_steam_installation_path():
-    """Retrieve the Steam installation path from the Windows registry."""
+def get_steam_game_installation_path(app_id):
+    """Retrieve the installation path for a specific Steam game by app ID."""
     try:
+        steamapps_dir = None
+        # Get Steam installation path from the registry
         reg_key = winreg.OpenKey(
             winreg.HKEY_LOCAL_MACHINE, 
             r"SOFTWARE\WOW6432Node\Valve\Steam"
@@ -19,7 +21,32 @@ def get_steam_installation_path():
         steam_path, _ = winreg.QueryValueEx(reg_key, "InstallPath")
         winreg.CloseKey(reg_key)
         print(f"Steam installation path found: {steam_path}")
-        return steam_path
+
+        # Look for the game in the steamapps folder
+        steamapps_dir = os.path.join(steam_path, "steamapps")
+
+        if not os.path.exists(steamapps_dir):
+            print("steamapps folder not found.")
+            sys.exit(1)
+
+        # Find the appmanifest file for the given app_id
+        app_manifest_path = os.path.join(steamapps_dir, f"appmanifest_{app_id}.acf")
+
+        if not os.path.exists(app_manifest_path):
+            print(f"App manifest file for App ID {app_id} not found.")
+            sys.exit(1)
+
+        # Read the appmanifest file to find the game's installation path
+        with open(app_manifest_path, 'r') as f:
+            for line in f:
+                if '"installdir"' in line:
+                    install_dir = line.split('"')[3]  # Get the directory part
+                    game_path = os.path.join(steam_path, "steamapps", "common", install_dir)
+                    print(f"Game installation path for App ID {app_id} found: {game_path}")
+                    return game_path
+        print(f"Failed to find install directory in {app_manifest_path}")
+        sys.exit(1)
+        
     except FileNotFoundError:
         print("Steam installation path not found in the registry.")
         sys.exit(1)
@@ -63,18 +90,17 @@ def create_settings_file(file_path):
 
 
 def launch_steam_game(app_id):
-    # Get the Steam installation path
-    steam_path = os.path.join(get_steam_installation_path(), "steam.exe")
-    print(f"Checking if Steam exists at: {steam_path}")
-
-    if not os.path.exists(steam_path):
-        print("Steam not found. Please check the path.")
+    # Get the game installation path
+    game_path = get_steam_game_installation_path(app_id)
+    executable_path = os.path.join(game_path, "M1/Binaries/Win64/M1-Win64-Shipping.exe")
+    
+    if not os.path.exists(executable_path):
+        print(f"Executable not found at: {executable_path}")
         sys.exit(1)
 
-    # Launch the game with the given App ID
+    print(f"Launching game from: {executable_path}")
     try:
-        print(f"Launching TFD with App ID {app_id}...")
-        subprocess.run([steam_path, f"steam://rungameid/{app_id}"], check=True)
+        subprocess.run([executable_path], check=True)
         print("Game launched successfully.")
     except subprocess.CalledProcessError as e:
         print(f"Failed to launch the game: {e}")
@@ -93,11 +119,13 @@ def find_process_by_name(name):
 
 
 def main():
-    # Define file path and App ID
-    steam_install_path = get_steam_installation_path()
-    file_path = os.path.join(steam_install_path, r"steamapps\common\The First Descendant\EasyAntiCheat\Settings.json")
+    # Define App ID
     app_id = "2074920"  # Example: TFD
     target_process_name = "BlackCipher64.aes"
+
+    # Define file path based on game installation
+    game_install_path = get_steam_game_installation_path(app_id)
+    file_path = os.path.join(game_install_path, r"EasyAntiCheat\Settings.json")
 
     # Create the settings file
     print("Creating settings file...")
